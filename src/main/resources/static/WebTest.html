@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Real-Time Bidding</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/sockjs-client/1.5.0/sockjs.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/stomp.js/2.3.3/stomp.min.js"></script>
+</head>
+<body>
+<h1>Real-Time Bidding</h1>
+
+<div id="placeBidForm">
+    <h2>Place Bid</h2>
+    <label for="userId">User ID:</label>
+    <input type="text" id="userId" name="userId"><br><br>
+    <label for="bidCarId">Car ID:</label>
+    <input type="text" id="bidCarId" name="bidCarId"><br><br>
+    <label for="amount">Bid Amount:</label>
+    <input type="text" id="amount" name="amount"><br><br>
+    <button onclick="placeBid()">Place Bid</button>
+</div>
+
+<hr>
+
+<div id="topThreeBids">
+    <h2>Top Three Bids</h2>
+    <ul id="topBidsList">
+    </ul>
+</div>
+
+<script>
+
+    const socket = new SockJS('http://localhost:8080/Aucbidding');
+    const stompClient = Stomp.over(socket);
+
+    stompClient.connect({}, function (frame) {
+        console.log('Connected: ' + frame);
+
+        stompClient.subscribe('/topic/bids', function (message) {
+            const bid = JSON.parse(message.body);
+            console.log('Received new bid: ', bid);
+            refreshTopThreeBids();
+        });
+
+        stompClient.subscribe('/topic/topThreeBids', function (message) {
+            const topBids = JSON.parse(message.body);
+            updateTopThreeBids(topBids);
+        });
+
+        refreshTopThreeBids();
+        setInterval(refreshTopThreeBids, 1000);
+    });
+
+    function placeBid() {
+        const userId = document.getElementById('userId').value;
+        const bidCarId = document.getElementById('bidCarId').value;
+        const amount = document.getElementById('amount').value;
+        const dateTime = new Date().toISOString();
+
+        const bid = { userId, bidCarId, amount, dateTime };
+        stompClient.send('/app/placeBid', {}, JSON.stringify(bid));
+    }
+
+    function refreshTopThreeBids() {
+        const bidCarId = document.getElementById('bidCarId').value;
+        stompClient.send('/app/topThreeBids', {}, JSON.stringify({ bidCarId }));
+    }
+
+    function updateTopThreeBids(bids) {
+        const topBidsList = document.getElementById('topBidsList');
+        topBidsList.innerHTML = '';
+
+        bids.forEach(bid => {
+            const listItem = document.createElement('li');
+            listItem.textContent = `User ${bid.userId} placed a bid of ${bid.amount} on car ${bid.bidCarId}`;
+            topBidsList.appendChild(listItem);
+        });
+    }
+</script>
+</body>
+</html>
